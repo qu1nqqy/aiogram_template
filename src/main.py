@@ -2,8 +2,10 @@ from aiogram import Bot, Dispatcher
 from dishka.integrations.aiogram import setup_dishka
 
 from src.core.config import cfg
+from src.core.db import create_engine, create_session_factory
 from src.core.exc.handlers import error_router
 from src.core.middlewares.logging import LoggingMiddleware
+from src.core.middlewares.user import UserMiddleware
 from src.di.container import get_container
 from src.services.logger import get_logger
 
@@ -14,8 +16,13 @@ async def main() -> None:
 	bot = Bot(token=cfg.bot.token)
 	dp = Dispatcher()
 
+	# Session factory для middleware
+	engine = create_engine()
+	session_factory = create_session_factory(engine)
+
 	# Middleware
 	dp.update.outer_middleware(LoggingMiddleware())
+	dp.update.outer_middleware(UserMiddleware(session_factory))
 
 	# Error handler
 	dp.include_router(error_router)
@@ -37,5 +44,6 @@ async def main() -> None:
 		)
 	finally:
 		await container.close()
+		await engine.dispose()
 		await bot.session.close()
 		logger.info("Bot stopped.")
